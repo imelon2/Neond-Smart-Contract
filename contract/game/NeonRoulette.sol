@@ -12,11 +12,13 @@ contract NeonRoulette is VRF {
     struct Bet {
         address player;
         address token;
-        uint40 outcome;
+        uint256 outcome;
+        uint256 bonusOutcome;
         bool isSettled;
         uint256 winAmount;
         uint256 placeBlockNumber;
         uint256[] betAmount;
+        uint256 totalBetAmount;
     }
 
     struct Token {
@@ -38,7 +40,7 @@ contract NeonRoulette is VRF {
     constructor(
         address _vrfCoordinator,
         address _House
-        ) VRF(_vrfCoordinator){
+        ) VRF(_vrfCoordinator,8 /* number of RandomWords request vrf */){
         House = IHouse(_House);
         refundDelay = 10800; // 1 Block = 2 sec | 10800 BLocks = 21600 sec = 6 hours (Based by Polygon)
     }
@@ -145,9 +147,11 @@ contract NeonRoulette is VRF {
         bets[betId] = Bet({
             player : player,
             token : token,
-            betAmount : betAmount,
+            betAmount : betAmount, // uint256[]
+            totalBetAmount : totalBetAmount,
             winAmount : 0,
             outcome : 0,
+            bonusOutcome: 0,
             placeBlockNumber : block.number,
             isSettled : false
         });
@@ -157,13 +161,79 @@ contract NeonRoulette is VRF {
         emit BetPlaced(betId, player, token, betAmount);
     }
 
-    // Chain Link VRF call this with result
+    /*
+    * @dev : Chain Link VRF call this with result
+    * randomWords[0] = game result
+    * randomWords[1] = number of bonus games (0~5)
+    * randomWords[2] = Bonus Game Win Multiplier (x1 ~ x10000)
+    * randomWords[3 ~ 7] = Draw a bonus number, number of randomWords[1] (0~37)
+    * L if randomWords[1] = 3, bonus number = randomWords[3],randomWords[4],randomWords[5]
+    */
     function fulfillRandomWords(uint256 id, uint256[] memory randomWords)
         internal
         override {
-            // Bet storage bet = bets[betId];
-            // settleBet(id,randomWords[0]);
+            Bet storage bet = bets[id];
+            uint256 totalBetAmount = bet.totalBetAmount;
+
+
+            // Check that bet exists
+            // Check that bet is not settled yet
+            if (totalBetAmount == 0 || bet.isSettled == true) {
+                return;
+            }
+
+            uint256 amount;
+            address token = bet.token;
+            address player = bet.player;
+
+            uint256 outcome = randomWords[0] % 37;
+            uint256 betAmount = bet.betAmount[outcome];
+
+            uint8 bounsIndex;
+            uint256 bonusOutcome;
+
+            // Win Game
+            if(betAmount != 0) {
+                bounsIndex = uint8(randomWords[1] % 6);// 0~5 EA
+                uint bounsMultipler = 30; // test value
+                if(bounsIndex != 0) {
+                    uint bonusNum;
+                    for(uint i = 0; i < bounsIndex; i++) {
+                        bonusNum = 2 ** (randomWords[i+2] % 37);
+                        bonusOutcome & bonusNum == 0 ? bonusOutcome += bonusNum : 0 ;
+                    }
+                    // check bonus result
+                    2 ** outcome & bonusOutcome != 0 ? 
+                    // Win Bonus Game
+                    amount = betAmount * bounsMultipler :
+                    // Lose Bonus Game
+                    amount = betAmount * MULTIPLIER; // x27
+
+                // if Bonus number is 0
+                } else {
+                    amount = betAmount * MULTIPLIER; // x27
+                }
+            // Lose Game
+            } else {
+                amount = 0;
+            }
+
+            uint256 winAmount = settleBet(token,player,amount);
+            bet.winAmount = winAmount;
+            bet.outcome = outcome;
+            bet.bonusOutcome = bonusOutcome;
+
+
+
     }
 
-    function settleBet(uint betId,uint256 randomNumber) private {}
+    function _getWinAmount(address _token, uint256 _amount) private view returns(uint256) {
+            return _amount * (10000 - tokens[_token].houseEdge) / 10000;
+    }
+
+    function settleBet(address token,address player,uint256 amount) private returns(uint256 winAmount) {
+        winAmount = _getWinAmount(token,amount);
+        House.settleBet(token, player, winAmount, 0, amount != 0);
+
+    }
 }

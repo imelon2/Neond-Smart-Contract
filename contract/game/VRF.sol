@@ -19,10 +19,12 @@ abstract contract VRF is Ownable,VRFConsumerBaseV2 {
     VRFCoordinatorV2Interface COORDINATOR;
     ChainlinkConfig public chainlinkConfig;
 
-    uint16 internal constant numRandomWords = 1;
+    uint32 internal immutable numRandomWords;
 
     // address vrfCoordinator = 0x7a1BaC17Ccc5b313516C5E16fb24f7659aA5ebed; // Mumbai
-    constructor(address vrfCoordinator) VRFConsumerBaseV2(vrfCoordinator) {}
+    constructor(address vrfCoordinator,uint32 _numRandomWords) VRFConsumerBaseV2(vrfCoordinator) {
+        numRandomWords = _numRandomWords;
+    }
 
 
     /*

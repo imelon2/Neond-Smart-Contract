@@ -119,11 +119,11 @@ contract House is IHouse,Ownable  {
     }
 
     // Method
-    function palceBet(address token,address player,uint betAmount,uint winnableAmount) external IsHouseLive IsGame {
+    function palceBet(address token,address player,uint betAmount,uint lockedInBets) external IsHouseLive IsGame {
 
         // Need player approve
         IERC20(token).safeTransferFrom(player, address(this), betAmount);
-        tokens[token].lockedInBets += winnableAmount;
+        // tokens[token].lockedInBets += lockedInBets;
     }
 
     function settleBet(address token,address player, uint betAmount,uint winnableAmount, bool win) external IsGame {
@@ -133,7 +133,7 @@ contract House is IHouse,Ownable  {
         } else {
             tokens[token].profit += int(betAmount);
         }
-        tokens[token].lockedInBets -= winnableAmount;
+        // tokens[token].lockedInBets -= winnableAmount;
     }
 
     function refundBet(address token,address player, uint amount, uint winnableAmount) external IsHouseLive IsGame {
