@@ -119,26 +119,29 @@ contract House is IHouse,Ownable  {
     }
 
     // Method
-    function palceBet(address token,address player,uint betAmount,uint lockedInBets) external IsHouseLive IsGame {
+    function palceBet(address token,address player,uint amount) external IsHouseLive IsGame {
 
         // Need player approve
-        IERC20(token).safeTransferFrom(player, address(this), betAmount);
-        // tokens[token].lockedInBets += lockedInBets;
+        IERC20(token).safeTransferFrom(player, address(this), amount);
+        
+        tokens[token].lockedInBets += amount;
     }
-
-    function settleBet(address token,address player, uint betAmount,uint winnableAmount, bool win) external IsGame {
+    /*
+    * @param amount : win amount
+    */
+    function settleBet(address token,address player,uint totalAmount, uint amount, bool win) external IsGame {
         if (win == true) {
-            tokens[token].profit -= int(winnableAmount) - int(betAmount);
-            _sendToken(player,token,winnableAmount);
+            _sendToken(player,token,amount);
+            tokens[token].profit += int(totalAmount) - int(amount);
         } else {
-            tokens[token].profit += int(betAmount);
+            tokens[token].profit += int(totalAmount);
         }
-        // tokens[token].lockedInBets -= winnableAmount;
+        tokens[token].lockedInBets -= totalAmount;
     }
 
-    function refundBet(address token,address player, uint amount, uint winnableAmount) external IsHouseLive IsGame {
-        tokens[token].lockedInBets -= winnableAmount;
-        _sendToken(player, token, amount);
+    function refundBet(address token,address player, uint amount) external IsHouseLive IsGame {
+        IERC20(token).safeTransfer(player, amount);
+        tokens[token].lockedInBets -= amount;
     }
 
     function _sendToken(address recipient,address token,uint amount) private {

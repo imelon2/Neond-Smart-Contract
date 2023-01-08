@@ -15,6 +15,7 @@ contract NeonRoulette is VRF {
         uint256 outcome;
         uint256 bonusOutcome;
         bool isSettled;
+        bool isRefunded;
         uint256 winAmount;
         uint256 placeBlockNumber;
         uint256[] betAmount;
@@ -53,11 +54,14 @@ contract NeonRoulette is VRF {
     error BetLengthNotInRange();
     error HouseUnapprovedToken();
     error ZeroBet();
+    error SettledBet();
+    error NotPassedRefundPeriod();
+
 
     // Events
     event BetPlaced(uint indexed betId, address indexed player,address token, uint256[] betAmount);
-    event BetSettled(uint indexed betId, address indexed player, uint betAmount, uint betChoice, uint outcome, uint winAmount);
-    event BetRefunded(uint indexed betId, address indexed player, uint amount);
+    event BetSettled(uint indexed betId, address indexed player, address token, uint256[] betAmount, uint outcome,uint bounsOutcome, uint winAmount);
+    event BetRefunded(uint indexed betId, address indexed player,address token, uint amount);
     event SetHouseEdge(address indexed token, uint16 houseEdge);
     event SetRefundPeriod(uint16 refundDelay);
 
@@ -111,6 +115,10 @@ contract NeonRoulette is VRF {
         return House.getMaxBetAmount(token,MULTIPLIER);
     }
 
+    function _getWinAmount(address _token, uint256 _amount) private view returns(uint256) {
+            return _amount * (10000 - tokens[_token].houseEdge) / 10000;
+    }
+
     function placeBet(address token, uint256[] calldata betAmount) external IsGameLive {
         if(tokens[token].isPuased) {
             revert TokenIsPaused();
@@ -140,7 +148,7 @@ contract NeonRoulette is VRF {
         address player = msg.sender;
 
         // Transfer player's bet amount and Pending a winnings amount in a House
-        House.palceBet(token,player,totalBetAmount,0);
+        House.palceBet(token,player,totalBetAmount);
 
         uint256 betId = sendRequestRandomness(); // request randomness to Chainlink VRF
 
@@ -153,7 +161,8 @@ contract NeonRoulette is VRF {
             outcome : 0,
             bonusOutcome: 0,
             placeBlockNumber : block.number,
-            isSettled : false
+            isSettled : false,
+            isRefunded : false
         });
 
         tokens[token].pendingCount ++;
@@ -187,7 +196,8 @@ contract NeonRoulette is VRF {
             address player = bet.player;
 
             uint256 outcome = randomWords[0] % 37;
-            uint256 betAmount = bet.betAmount[outcome];
+            uint256[] memory _betAmount = bet.betAmount;
+            uint256 betAmount = _betAmount[outcome];
 
             uint8 bounsIndex;
             uint256 bonusOutcome;
@@ -213,27 +223,59 @@ contract NeonRoulette is VRF {
                 } else {
                     amount = betAmount * MULTIPLIER; // x27
                 }
+
+
             // Lose Game
             } else {
                 amount = 0;
             }
 
-            uint256 winAmount = settleBet(token,player,amount);
+            // uint256 winAmount = settleBet(token,player,amount);
+            uint256 winAmount = _getWinAmount(token,amount);
+            House.settleBet(token, player, totalBetAmount,winAmount, amount != 0);
+
             bet.winAmount = winAmount;
             bet.outcome = outcome;
             bet.bonusOutcome = bonusOutcome;
+            bet.isSettled = true;
 
+            tokens[token].pendingCount --;
 
-
+            emit BetSettled(id,player,token,_betAmount,outcome,bonusOutcome,winAmount);
     }
 
-    function _getWinAmount(address _token, uint256 _amount) private view returns(uint256) {
-            return _amount * (10000 - tokens[_token].houseEdge) / 10000;
+    function refundBet(uint betId) external {
+        Bet storage bet = bets[betId];
+
+        uint256 totalBetAmount = bet.totalBetAmount;
+        address token = bet.token;
+
+        if(totalBetAmount <= 0) {
+            revert ZeroBet();
+        }
+        if(bet.isSettled) {
+            revert SettledBet();
+        }
+        if(!isPassedRefundPeriod(betId)) {
+            revert NotPassedRefundPeriod();
+        }
+
+        address player = bet.player;
+
+        House.refundBet(token, player, totalBetAmount);
+
+        // Update bet records
+        bet.isSettled = true;
+        bet.isRefunded = true;
+
+
+        tokens[token].pendingCount --;
+
+        emit BetRefunded(betId,player,token,totalBetAmount);
     }
 
-    function settleBet(address token,address player,uint256 amount) private returns(uint256 winAmount) {
-        winAmount = _getWinAmount(token,amount);
-        House.settleBet(token, player, winAmount, 0, amount != 0);
-
+    // Checked
+    function isPassedRefundPeriod(uint betId) public view returns(bool) {
+        return block.number > bets[betId].placeBlockNumber + refundDelay;
     }
 }
