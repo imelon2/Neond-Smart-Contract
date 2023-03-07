@@ -63,7 +63,7 @@ contract Dice is VRF  {
     constructor(
         address _vrfCoordinator,
         address _House
-        ) VRF(_vrfCoordinator){
+        ) VRF(_vrfCoordinator,1){
         House = IHouse(_House);
         refundDelay = 10800; // 1 Block = 2 sec | 10800 BLocks = 21600 sec = 6 hours (Based by Polygon)
     }
@@ -137,6 +137,7 @@ contract Dice is VRF  {
             return _winAmount * MODULO / _rollUnder;
     }
 
+
     function _getRollUnder(uint _betChoice) private pure returns(uint40) {
         return uint40(((_betChoice * POPCNT_MULT) & POPCNT_MASK) % POPCNT_MODULO);
     }
@@ -180,10 +181,11 @@ contract Dice is VRF  {
         uint256 winnableAmount = _getWinAmount(token,betAmount,rollUnder);
 
         // Transfer player's bet amount and Pending a winnings amount in a House
-        House.palceBet(token,player,betAmount,winnableAmount);
+        House.palceBet(token,player,betAmount);
 
 
         uint256 betId = sendRequestRandomness(); // request randomness to Chainlink VRF
+
         bets[betId] = Bet({
             player : player,
             token : token,
@@ -197,7 +199,8 @@ contract Dice is VRF  {
         });
 
         tokens[token].pendingCount ++;
-        
+
+        // save bet history blockchain transaction receipt
         emit BetPlaced(betId, player, token, betAmount, betChoice);
     }
 
@@ -226,7 +229,11 @@ contract Dice is VRF  {
 
         // VRF final result
         uint40 outcome = uint40(randomNumber % MODULO);
+
+
         uint winnableAmount = _getWinAmount(token, betAmount, rollUnder);
+
+
         uint winAmount = (2 ** outcome) & betChoice != 0 ? winnableAmount : 0;
 
         bet.outcome = outcome;
@@ -260,7 +267,7 @@ contract Dice is VRF  {
         uint40 rollUnder = bet.rollUnder;
         uint winnableAmount = _getWinAmount(token,betAmount,rollUnder);
 
-        House.refundBet(token, player, betAmount, winnableAmount);
+        House.refundBet(token, player, betAmount);
 
         // Update bet records
         bet.isSettled = true;
