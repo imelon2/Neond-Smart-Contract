@@ -41,7 +41,7 @@ contract NeonRoulette is VRF {
     constructor(
         address _vrfCoordinator,
         address _House
-        ) VRF(_vrfCoordinator,8 /* number of RandomWords request vrf */){
+        ) VRF(_vrfCoordinator, 8 /* number of RandomWords request vrf */){
         House = IHouse(_House);
         refundDelay = 10800; // 1 Block = 2 sec | 10800 BLocks = 21600 sec = 6 hours (Based by Polygon)
     }
@@ -147,7 +147,7 @@ contract NeonRoulette is VRF {
 
         address player = msg.sender;
 
-        // Transfer player's bet amount and Pending a winnings amount in a House
+        // Transfer player's bet amount and Pending amount in a House
         House.palceBet(token,player,totalBetAmount);
 
         uint256 betId = sendRequestRandomness(); // request randomness to Chainlink VRF
@@ -205,10 +205,11 @@ contract NeonRoulette is VRF {
             // Win Game
             if(betAmount != 0) {
                 bounsIndex = uint8(randomWords[1] % 6);// 0~5 EA
-                uint bounsMultipler = 30; // test value
+                uint bounsMultipler = 30; // test value randomWords[2]
                 if(bounsIndex != 0) {
                     uint bonusNum;
                     for(uint i = 0; i < bounsIndex; i++) {
+                        // bonusNum = 2 ** (randomWords[i+3] % 37);
                         bonusNum = 2 ** (randomWords[i+2] % 37);
                         bonusOutcome & bonusNum == 0 ? bonusOutcome += bonusNum : 0 ;
                     }

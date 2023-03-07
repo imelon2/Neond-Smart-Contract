@@ -107,14 +107,14 @@ contract House is IHouse,Ownable  {
     }
 
     function getMaxBetAmount(address token,uint256 multiplier) external view returns(uint256) {
-        return (getBalance(token) * tokens[token].maxRiskRatio) / multiplier;
+        return ((getAvailableBalance(token) * tokens[token].maxRiskRatio) / multiplier) / 10000;
     }
 
     function getBalance(address token) public view returns(uint256) {
         return IERC20(token).balanceOf(address(this));
     }
 
-    function getAvailableBalamce(address token) public view returns(uint256) {
+    function getAvailableBalance(address token) public view returns(uint256) {
         return getBalance(token) - tokens[token].lockedInBets;
     }
 
@@ -149,7 +149,7 @@ contract House is IHouse,Ownable  {
     } 
     
     function sendToken(address recipient,address token,uint amount) external onlyOwner {
-        if(getAvailableBalamce(token) < amount) {
+        if(getAvailableBalance(token) < amount) {
             revert AmountExeceedsLimit();
         }
         _sendToken(recipient,token,amount);
@@ -157,4 +157,3 @@ contract House is IHouse,Ownable  {
         emit SendToken(recipient, token, amount);
     }
 }
-
