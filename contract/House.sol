@@ -59,6 +59,7 @@ contract House is IHouse,Ownable  {
         emit InitToken(token,maxRiskRatio,minBetAmount);
     }
 
+
     // Management
     function toggleHouseIsLive() external onlyOwner {
         houseIsLive = !houseIsLive;

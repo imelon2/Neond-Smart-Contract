@@ -1,3 +1,4 @@
 .deps/
 artifacts/
 test/
+.deploys/
